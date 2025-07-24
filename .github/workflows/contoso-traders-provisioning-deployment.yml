@@ -59,23 +59,13 @@ jobs:
         with:
           creds: ${{ secrets.SERVICEPRINCIPAL }}
 
-      - name: Extract ACR password
-        id: extract-acr-password
-        uses: azure/CLI@v1
-        with:
-          inlineScript: |
-            echo "acrPassword=$(az acr credential show \
-              --name ${{ env.ACR_NAME }}${{ secrets.ENVIRONMENT }} \
-              --resource-group ${{ env.RESOURCE_GROUP_NAME }}${{ secrets.ENVIRONMENT }} \
-              --query passwords[0].value -o tsv)" \
-            >> $GITHUB_OUTPUT
 
       - name: ACR login
         uses: azure/docker-login@v1
         with:
           login-server: ${{ env.ACR_NAME }}${{ secrets.ENVIRONMENT }}.azurecr.io
           username:    ${{ env.ACR_NAME }}${{ secrets.ENVIRONMENT }}
-          password:    ${{ steps.extract-acr-password.outputs.acrPassword }}
+          password:    ${{ secrets.ACR_PASSWORD }}
 
       - name: Build & push carts image
         run: |
@@ -110,23 +100,13 @@ jobs:
         uses: Azure/setup-helm@v3
         id: install-helm
 
-      - name: Extract ACR password
-        id: extract-acr-password
-        uses: azure/CLI@v1
-        with:
-          inlineScript: |
-            echo "acrPassword=$(az acr credential show \
-              --name ${{ env.ACR_NAME }}${{ secrets.ENVIRONMENT }} \
-              --resource-group ${{ env.RESOURCE_GROUP_NAME }}${{ secrets.ENVIRONMENT }} \
-              --query passwords[0].value -o tsv)" \
-            >> $GITHUB_OUTPUT
 
       - name: ACR login
         uses: azure/docker-login@v1
         with:
           login-server: ${{ env.ACR_NAME }}${{ secrets.ENVIRONMENT }}.azurecr.io
           username:    ${{ env.ACR_NAME }}${{ secrets.ENVIRONMENT }}
-          password:    ${{ steps.extract-acr-password.outputs.acrPassword }}
+          password:   ${{ secrets.ACR_PASSWORD }}
 
       - name: Build & push products image
         run: |
@@ -151,7 +131,7 @@ jobs:
           secret-name:                 ${{ env.AKS_SECRET_NAME_ACR_PASSWORD }}
           container-registry-url:      ${{ env.ACR_NAME }}${{ secrets.ENVIRONMENT }}.azurecr.io
           container-registry-username: ${{ env.ACR_NAME }}${{ secrets.ENVIRONMENT }}
-          container-registry-password: ${{ steps.extract-acr-password.outputs.acrPassword }}
+          container-registry-password: ${{ secrets.ACR_PASSWORD }}
 
       - name: Get managed identity client ID
         id: get-managedIdentityClientId
@@ -199,7 +179,7 @@ jobs:
         with:
           manifests: ./src/ContosoTraders.Api.Products/Manifests/Deployment.yaml
           images:           ${{ env.ACR_NAME }}${{ secrets.ENVIRONMENT }}.azurecr.io/${{ env.PRODUCTS_ACR_REPOSITORY_NAME }}:${{ github.sha }}
-          imagepullsecrets: ${{ env.AKS_SECRET_NAME_ACR_PASSWORD }}
+          imagepullsecrets: ${{ secrets.ACR_PASSWORD }}
           force:            true
 
       - name: Apply service manifest
