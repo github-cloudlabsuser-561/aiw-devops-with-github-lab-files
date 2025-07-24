@@ -131,7 +131,7 @@ jobs:
         with:
           login-server: ${{ env.ACR_NAME }}.azurecr.io
           username:    ${{ env.ACR_NAME }}
-          password:    ${{ steps.extract-acr-password.outputs.acrPassword }}
+          password:    ${{ secrets.ACR_PASSWORD }}
 
       - name: build & push products image
         run: |
@@ -157,7 +157,7 @@ jobs:
           secret-name:                 ${{ env.AKS_SECRET_NAME_ACR_PASSWORD }}
           container-registry-url:      ${{ env.ACR_NAME }}.azurecr.io
           container-registry-username: ${{ env.ACR_NAME }}
-          container-registry-password: ${{ steps.extract-acr-password.outputs.acrPassword }}
+          container-registry-password: ${{ secrets.ACR_PASSWORD }}
 
       # …the rest of your deploy-products-api steps remain unchanged…
 
