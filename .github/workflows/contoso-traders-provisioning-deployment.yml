@@ -17,9 +17,9 @@ env:
   AKS_CLUSTER_NAME: contoso-traders-aks
   AKS_DNS_LABEL: contoso-traders-products
   AKS_NODES_RESOURCE_GROUP_NAME: contoso-traders-aks-nodes-rg-
-  AKS_SECRET_NAME_ACR_PASSWORD: ${{ secrets.ACR_PASSWORD }}
+  AKS_SECRET_NAME_ACR_PASSWORD: contoso-traders-acr-password
   AKS_SECRET_NAME_KV_ENDPOINT: contoso-traders-kv-endpoint
-  AKS_SECRET_NAME_MI_CLIENTID: contos-traders-mi-clientid
+  AKS_SECRET_NAME_MI_CLIENTID: contoso-traders-mi-clientid
   CARTS_ACA_NAME: contoso-traders-carts
   CARTS_ACR_REPOSITORY_NAME: contosotradersapicarts
   CDN_PROFILE_NAME: contoso-traders-cdn
@@ -37,7 +37,7 @@ env:
   STORAGE_ACCOUNT_NAME: contosotradersimg
   UI_CDN_ENDPOINT_NAME: contoso-traders-ui2
   UI_STORAGE_ACCOUNT_NAME: contosotradersui2
-  USER_ASSIGNED_MANAGED_IDENTITY_NAME: contos-traders-mi-kv-access
+  USER_ASSIGNED_MANAGED_IDENTITY_NAME: contoso-traders-mi-kv-access
 
 jobs:
   deploy-carts-api:
@@ -149,7 +149,7 @@ jobs:
           container-registry-username: ${{ env.ACR_NAME }}${{ secrets.ENVIRONMENT }}
           container-registry-password: ${{ steps.extract-acr-password.outputs.acrPassword }}
 
-      # (the rest of your deploy-products-api steps remain unchanged)
+      # …the rest of your deploy-products-api steps stay unchanged…
 
   deploy-ui:
     runs-on: ubuntu-latest
@@ -163,7 +163,7 @@ jobs:
         with:
           creds: ${{ secrets.SERVICEPRINCIPAL }}
 
-      - name: get carts api endpoint
+      - name: get carts API endpoint
         uses: azure/CLI@v1
         id: get-cartsApiEndpoint
         with:
@@ -173,7 +173,7 @@ jobs:
               --name cartsApiEndpoint \
               --query value -o tsv)" >> $GITHUB_OUTPUT
 
-      - name: get products api endpoint
+      - name: get products API endpoint
         uses: azure/CLI@v1
         id: get-productsApiEndpoint
         with:
@@ -183,7 +183,7 @@ jobs:
               --name productsApiEndpoint \
               --query value -o tsv)" >> $GITHUB_OUTPUT
 
-      - name: substitute tokens in ui configuration
+      - name: substitute tokens in UI config
         uses: cschleiden/replace-tokens@v1.2
         with:
           tokenPrefix: "{{"
