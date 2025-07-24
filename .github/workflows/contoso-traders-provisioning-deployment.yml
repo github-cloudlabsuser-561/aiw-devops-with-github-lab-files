@@ -24,7 +24,7 @@ env:
   AKS_SECRET_NAME_ACR_PASSWORD: ${{ secrets.ACR_PASSWORD }}
   AKS_SECRET_NAME_KV_ENDPOINT: contoso-traders-kv-endpoint
   AKS_SECRET_NAME_MI_CLIENTID: contoso-traders-mi-clientid
-  CARTS_ACA_NAME: contoso-traders-carts
+  CARTS_ACA_NAME: contoso-traders-carts1801213
   CARTS_ACR_REPOSITORY_NAME: contosotradersapicarts
   CDN_PROFILE_NAME: contoso-traders-cdn
   SUB_DEPLOYMENT_REGION: eastus2
