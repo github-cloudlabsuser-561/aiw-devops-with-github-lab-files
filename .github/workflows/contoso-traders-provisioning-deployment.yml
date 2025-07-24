@@ -77,8 +77,7 @@ jobs:
         with:
           login-server: ${{ env.ACR_NAME }}.azurecr.io
           username:    ${{ env.ACR_NAME }}
-          password:    ${{ steps.extract-acr-password.outputs.acrPassword }}
-
+          password:    ${{ secrets.ACR_PASSWORD }}
       # ─── build & push ───────────────────────────────────────────────
       - name: build & push carts image
         run: |
