@@ -13,7 +13,7 @@ on:
       - src/ContosoTraders.Ui.Website/**
 
 env:
-  # core names (no environment suffix here)
+  # Registry and resource prefixes (we append the environment suffix below)
   ACR_NAME: contosotradersacr
   AKS_CLUSTER_NAME: contoso-traders-aks
   AKS_DNS_LABEL: contoso-traders-products
@@ -33,14 +33,14 @@ env:
   PRODUCTS_DB_NAME: productsdb
   PRODUCTS_DB_SERVER_NAME: contoso-traders-products
   PRODUCTS_DB_USER_NAME: localadmin
+
   PRODUCT_DETAILS_CONTAINER_NAME: product-details
   PRODUCT_IMAGES_STORAGE_ACCOUNT_NAME: contosotradersimg
   PRODUCT_LIST_CONTAINER_NAME: product-list
   PRODUCTS_CDN_ENDPOINT_NAME: contoso-traders-images
 
-  # this *is* just the prefix— your actual RG will be
-  # contoso-traders- + ${{ secrets.ENVIRONMENT }}
-  RESOURCE_GROUP_NAME: contoso-traders-
+  # Resource group prefix; full RG = contos-traders- + environment
+  RESOURCE_GROUP_NAME: contos-traders-
 
   STORAGE_ACCOUNT_NAME: contosotradersimg
   UI_CDN_ENDPOINT_NAME: contoso-traders-ui2
@@ -51,44 +51,41 @@ jobs:
   deploy-carts-api:
     runs-on: ubuntu-latest
     steps:
-      - name: checkout code
+      - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: azure login
+      - name: Azure login
         uses: azure/login@v1
         with:
           creds: ${{ secrets.SERVICEPRINCIPAL }}
 
-      # ─── extract the ACR admin password ─────────────────────────────
-      - name: extract acr password
+      - name: Extract ACR password
         id: extract-acr-password
         uses: azure/CLI@v1
         with:
           inlineScript: |
             echo "acrPassword=$(az acr credential show \
-              --name ${{ env.ACR_NAME }} \
+              --name ${{ env.ACR_NAME }}${{ secrets.ENVIRONMENT }} \
               --resource-group ${{ env.RESOURCE_GROUP_NAME }}${{ secrets.ENVIRONMENT }} \
               --query passwords[0].value -o tsv)" \
             >> $GITHUB_OUTPUT
 
-      # ─── login to ACR using that password ────────────────────────────
-      - name: azure container registry login
+      - name: ACR login
         uses: azure/docker-login@v1
         with:
-          login-server: ${{ env.ACR_NAME }}.azurecr.io
-          username:    ${{ env.ACR_NAME }}
-          password:    ${{ secrets.ACR_PASSWORD }}
-      # ─── build & push ───────────────────────────────────────────────
-      - name: build & push carts image
+          login-server: ${{ env.ACR_NAME }}${{ secrets.ENVIRONMENT }}.azurecr.io
+          username:    ${{ env.ACR_NAME }}${{ secrets.ENVIRONMENT }}
+          password:    ${{ steps.extract-acr-password.outputs.acrPassword }}
+
+      - name: Build & push carts image
         run: |
           docker build src \
             -f ./src/ContosoTraders.Api.Carts/Dockerfile \
-            -t ${{ env.ACR_NAME }}.azurecr.io/${{ env.CARTS_ACR_REPOSITORY_NAME }}:latest \
-            -t ${{ env.ACR_NAME }}.azurecr.io/${{ env.CARTS_ACR_REPOSITORY_NAME }}:${{ github.sha }}
-          docker push --all-tags ${{ env.ACR_NAME }}.azurecr.io/${{ env.CARTS_ACR_REPOSITORY_NAME }}
+            -t ${{ env.ACR_NAME }}${{ secrets.ENVIRONMENT }}.azurecr.io/${{ env.CARTS_ACR_REPOSITORY_NAME }}:latest \
+            -t ${{ env.ACR_NAME }}${{ secrets.ENVIRONMENT }}.azurecr.io/${{ env.CARTS_ACR_REPOSITORY_NAME }}:${{ github.sha }}
+          docker push --all-tags ${{ env.ACR_NAME }}${{ secrets.ENVIRONMENT }}.azurecr.io/${{ env.CARTS_ACR_REPOSITORY_NAME }}
 
-      # ─── update the container app ───────────────────────────────────
-      - name: deploy to container app
+      - name: Deploy to Container App
         uses: azure/CLI@v1
         with:
           inlineScript: |
@@ -96,84 +93,240 @@ jobs:
             az containerapp update \
               --name ${{ env.CARTS_ACA_NAME }}${{ secrets.ENVIRONMENT }} \
               --resource-group ${{ env.RESOURCE_GROUP_NAME }}${{ secrets.ENVIRONMENT }} \
-              --image ${{ env.ACR_NAME }}.azurecr.io/${{ env.CARTS_ACR_REPOSITORY_NAME }}:${{ github.sha }}
+              --image ${{ env.ACR_NAME }}${{ secrets.ENVIRONMENT }}.azurecr.io/${{ env.CARTS_ACR_REPOSITORY_NAME }}:${{ github.sha }}
 
   deploy-products-api:
     runs-on: ubuntu-latest
     steps:
-      - name: checkout code
+      - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: azure login
+      - name: Azure login
         uses: azure/login@v1
         with:
           creds: ${{ secrets.SERVICEPRINCIPAL }}
 
-      - name: install helm
+      - name: Install Helm
         uses: Azure/setup-helm@v3
         id: install-helm
 
-      # ─── extract the ACR password again ─────────────────────────────
-      - name: extract acr password
+      - name: Extract ACR password
         id: extract-acr-password
         uses: azure/CLI@v1
         with:
           inlineScript: |
             echo "acrPassword=$(az acr credential show \
-              --name ${{ env.ACR_NAME }} \
+              --name ${{ env.ACR_NAME }}${{ secrets.ENVIRONMENT }} \
               --resource-group ${{ env.RESOURCE_GROUP_NAME }}${{ secrets.ENVIRONMENT }} \
               --query passwords[0].value -o tsv)" \
             >> $GITHUB_OUTPUT
 
-      # ─── login to ACR ───────────────────────────────────────────────
-      - name: azure container registry login
+      - name: ACR login
         uses: azure/docker-login@v1
         with:
-          login-server: ${{ env.ACR_NAME }}.azurecr.io
-          username:    ${{ env.ACR_NAME }}
-          password:    ${{ secrets.ACR_PASSWORD }}
+          login-server: ${{ env.ACR_NAME }}${{ secrets.ENVIRONMENT }}.azurecr.io
+          username:    ${{ env.ACR_NAME }}${{ secrets.ENVIRONMENT }}
+          password:    ${{ steps.extract-acr-password.outputs.acrPassword }}
 
-      - name: build & push products image
+      - name: Build & push products image
         run: |
           docker build src \
             -f ./src/ContosoTraders.Api.Products/Dockerfile \
-            -t ${{ env.ACR_NAME }}.azurecr.io/${{ env.PRODUCTS_ACR_REPOSITORY_NAME }}:latest \
-            -t ${{ env.ACR_NAME }}.azurecr.io/${{ env.PRODUCTS_ACR_REPOSITORY_NAME }}:${{ github.sha }}
-          docker push --all-tags ${{ env.ACR_NAME }}.azurecr.io/${{ env.PRODUCTS_ACR_REPOSITORY_NAME }}
+            -t ${{ env.ACR_NAME }}${{ secrets.ENVIRONMENT }}.azurecr.io/${{ env.PRODUCTS_ACR_REPOSITORY_NAME }}:latest \
+            -t ${{ env.ACR_NAME }}${{ secrets.ENVIRONMENT }}.azurecr.io/${{ env.PRODUCTS_ACR_REPOSITORY_NAME }}:${{ github.sha }}
+          docker push --all-tags ${{ env.ACR_NAME }}${{ secrets.ENVIRONMENT }}.azurecr.io/${{ env.PRODUCTS_ACR_REPOSITORY_NAME }}
 
-      - name: set aks context
+      - name: Set AKS context
         uses: azure/aks-set-context@v3
         with:
           resource-group: ${{ env.RESOURCE_GROUP_NAME }}${{ secrets.ENVIRONMENT }}
           cluster-name:   ${{ env.AKS_CLUSTER_NAME }}${{ secrets.ENVIRONMENT }}
 
-      - name: setup kubectl
+      - name: Setup kubectl
         uses: azure/setup-kubectl@v3
 
-      # ─── create k8s secret for ACR creds ─────────────────────────────
-      - name: create kubernetes secret (acr password)
+      - name: Create k8s secret for ACR
         uses: Azure/k8s-create-secret@v3.0
         with:
           secret-name:                 ${{ env.AKS_SECRET_NAME_ACR_PASSWORD }}
-          container-registry-url:      ${{ env.ACR_NAME }}.azurecr.io
-          container-registry-username: ${{ env.ACR_NAME }}
-          container-registry-password: ${{ secrets.ACR_PASSWORD }}
+          container-registry-url:      ${{ env.ACR_NAME }}${{ secrets.ENVIRONMENT }}.azurecr.io
+          container-registry-username: ${{ env.ACR_NAME }}${{ secrets.ENVIRONMENT }}
+          container-registry-password: ${{ steps.extract-acr-password.outputs.acrPassword }}
 
-      # …the rest of your deploy-products-api steps remain unchanged…
+      - name: Get managed identity client ID
+        id: get-managedIdentityClientId
+        uses: azure/CLI@v1
+        with:
+          inlineScript: |
+            echo "managedIdentityClientId=$(az identity show \
+              --resource-group ${{ env.RESOURCE_GROUP_NAME }}${{ secrets.ENVIRONMENT }} \
+              --name ${{ env.USER_ASSIGNED_MANAGED_IDENTITY_NAME }}${{ secrets.ENVIRONMENT }} \
+              --query clientId -o tsv)" \
+            >> $GITHUB_OUTPUT
+
+      - name: Create k8s secret for KV endpoint
+        uses: Azure/k8s-create-secret@v3.0
+        with:
+          secret-type: generic
+          secret-name: ${{ env.AKS_SECRET_NAME_KV_ENDPOINT }}
+          string-data: |
+            { "${{ env.AKS_SECRET_NAME_KV_ENDPOINT }}" : "https://${{ env.KV_NAME }}${{ secrets.ENVIRONMENT }}.vault.azure.net/" }
+
+      - name: Create k8s secret for MI client ID
+        uses: Azure/k8s-create-secret@v3.0
+        with:
+          secret-type: generic
+          secret-name: ${{ env.AKS_SECRET_NAME_MI_CLIENTID }}
+          string-data: |
+            { "${{ env.AKS_SECRET_NAME_MI_CLIENTID }}" : "${{ steps.get-managedIdentityClientId.outputs.managedIdentityClientId }}" }
+
+      - name: Substitute tokens in deployment manifest
+        uses: cschleiden/replace-tokens@v1.2
+        with:
+          tokenPrefix: "{"
+          tokenSuffix: "}"
+          files: ./src/ContosoTraders.Api.Products/Manifests/Deployment.yaml
+        env:
+          ENVIRONMENT: ${{ secrets.ENVIRONMENT }}
+
+      - name: Lint deployment manifest
+        uses: azure/k8s-lint@v1
+        with:
+          manifests: ./src/ContosoTraders.Api.Products/Manifests/Deployment.yaml
+
+      - name: Apply deployment manifest
+        uses: Azure/k8s-deploy@v4
+        with:
+          manifests: ./src/ContosoTraders.Api.Products/Manifests/Deployment.yaml
+          images:           ${{ env.ACR_NAME }}${{ secrets.ENVIRONMENT }}.azurecr.io/${{ env.PRODUCTS_ACR_REPOSITORY_NAME }}:${{ github.sha }}
+          imagepullsecrets: ${{ env.AKS_SECRET_NAME_ACR_PASSWORD }}
+          force:            true
+
+      - name: Apply service manifest
+        uses: Azure/k8s-deploy@v4
+        with:
+          manifests: ./src/ContosoTraders.Api.Products/Manifests/Service.yaml
+          force: true
+
+      - name: Create ingress controller
+        run: |
+          az aks get-credentials \
+            --resource-group ${{ env.RESOURCE_GROUP_NAME }}${{ secrets.ENVIRONMENT }} \
+            --name ${{ env.AKS_CLUSTER_NAME }}${{ secrets.ENVIRONMENT }}
+          ${{ steps.install-helm.outputs.helm-path }} repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
+          ${{ steps.install-helm.outputs.helm-path }} repo update
+          ${{ steps.install-helm.outputs.helm-path }} upgrade --install nginx-ingress ingress-nginx/ingress-nginx \
+            --set controller.replicaCount=1 \
+            --set controller.nodeSelector."beta\.kubernetes\.io/os"=linux \
+            --set defaultBackend.nodeSelector."beta\.kubernetes\.io/os"=linux \
+            --set controller.admissionWebhooks.patch.nodeSelector."beta\.kubernetes\.io/os"=linux \
+            --set controller.service.externalTrafficPolicy=Local
+
+      - name: Set DNS label on public IP
+        uses: azure/CLI@v1
+        with:
+          inlineScript: |
+            az network public-ip update \
+              --dns-name ${{ env.AKS_DNS_LABEL }}${{ secrets.ENVIRONMENT }} \
+              -g ${{ env.AKS_NODES_RESOURCE_GROUP_NAME }}${{ secrets.ENVIRONMENT }} \
+              -n $(az network public-ip list \
+                    --query "[?starts_with(name,'kubernetes-')].name" \
+                    -o tsv \
+                    -g ${{ env.AKS_NODES_RESOURCE_GROUP_NAME }}${{ secrets.ENVIRONMENT }})
+
+      - name: Get AKS FQDN
+        id: get-aks-fqdn
+        uses: azure/CLI@v1
+        with:
+          inlineScript: |
+            echo "aksFqdn=$(az network public-ip list \
+              --query "[?starts_with(name,'kubernetes-')].dnsSettings.fqdn" \
+              -o tsv \
+              -g ${{ env.AKS_NODES_RESOURCE_GROUP_NAME }}${{ secrets.ENVIRONMENT }})" \
+            >> $GITHUB_OUTPUT
+
+      - name: Apply namespace manifest
+        uses: Azure/k8s-deploy@v4
+        with:
+          manifests: ./src/ContosoTraders.Api.Products/Manifests/Namespace.yaml
+          force: true
+
+      - name: Install cert-manager
+        run: |
+          az aks get-credentials \
+            --resource-group ${{ env.RESOURCE_GROUP_NAME }}${{ secrets.ENVIRONMENT }} \
+            --name ${{ env.AKS_CLUSTER_NAME }}${{ secrets.ENVIRONMENT }}
+          kubectl apply --validate=false -f \
+            https://github.com/cert-manager/cert-manager/releases/download/v1.9.1/cert-manager.yaml
+
+      - name: Sleep 30s
+        run: sleep 30s
+
+      - name: Apply ClusterIssuer manifest
+        uses: Azure/k8s-deploy@v4
+        with:
+          manifests: ./src/ContosoTraders.Api.Products/Manifests/ClusterIssuer.yaml
+          force: true
+
+      - name: Substitute tokens in Certificate manifest
+        uses: cschleiden/replace-tokens@v1.2
+        with:
+          tokenPrefix: "{"
+          tokenSuffix: "}"
+          files: ./src/ContosoTraders.Api.Products/Manifests/Certificate.yaml
+        env:
+          AKS_FQDN: ${{ steps.get-aks-fqdn.outputs.aksFqdn }}
+
+      - name: Apply Certificate manifest
+        uses: Azure/k8s-deploy@v4
+        with:
+          manifests: ./src/ContosoTraders.Api.Products/Manifests/Certificate.yaml
+          force: true
+
+      - name: Substitute tokens in Ingress manifest
+        uses: cschleiden/replace-tokens@v1.2
+        with:
+          tokenPrefix: "{"
+          tokenSuffix: "}"
+          files: ./src/ContosoTraders.Api.Products/Manifests/Ingress.yaml
+        env:
+          AKS_FQDN: ${{ steps.get-aks-fqdn.outputs.aksFqdn }}
+
+      - name: Apply Ingress manifest
+        uses: Azure/k8s-deploy@v4
+        with:
+          manifests: ./src/ContosoTraders.Api.Products/Manifests/Ingress.yaml
+          force: true
+
+      - name: Apply ClusterRole manifest
+        uses: Azure/k8s-deploy@v4
+        with:
+          manifests: ./src/ContosoTraders.Api.Products/Manifests/ClusterRole.yaml
+          force: true
+
+      - name: Set productsApiEndpoint in KV
+        uses: azure/CLI@v1
+        with:
+          inlineScript: |
+            az keyvault secret set \
+              --vault-name ${{ env.KV_NAME }}${{ secrets.ENVIRONMENT }} \
+              --name productsApiEndpoint \
+              --value ${{ steps.get-aks-fqdn.outputs.aksFqdn }} \
+              --description "endpoint url (fqdn) of the products api"
 
   deploy-ui:
     runs-on: ubuntu-latest
     needs: [deploy-carts-api, deploy-products-api]
     steps:
-      - name: checkout code
+      - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: azure login
+      - name: Azure login
         uses: azure/login@v1
         with:
           creds: ${{ secrets.SERVICEPRINCIPAL }}
 
-      - name: get carts API endpoint
+      - name: Get carts API endpoint
         uses: azure/CLI@v1
         id: get-cartsApiEndpoint
         with:
@@ -183,7 +336,7 @@ jobs:
               --name cartsApiEndpoint \
               --query value -o tsv)" >> $GITHUB_OUTPUT
 
-      - name: get products API endpoint
+      - name: Get products API endpoint
         uses: azure/CLI@v1
         id: get-productsApiEndpoint
         with:
@@ -193,7 +346,7 @@ jobs:
               --name productsApiEndpoint \
               --query value -o tsv)" >> $GITHUB_OUTPUT
 
-      - name: substitute tokens in UI config
+      - name: Substitute tokens in UI config
         uses: cschleiden/replace-tokens@v1.2
         with:
           tokenPrefix: "{{"
@@ -203,7 +356,7 @@ jobs:
           CARTS_API_ENDPOINT:    ${{ steps.get-cartsApiEndpoint.outputs.cartsApiEndpoint }}
           PRODUCTS_API_ENDPOINT: ${{ steps.get-productsApiEndpoint.outputs.productsApiEndpoint }}
 
-      - name: install node v16
+      - name: Install node v16
         uses: actions/setup-node@v3
         with:
           node-version: 16
@@ -216,7 +369,7 @@ jobs:
         run: npm run build
         working-directory: src/ContosoTraders.Ui.Website
 
-      - name: deploy to storage
+      - name: Deploy to storage
         uses: azure/CLI@v2
         with:
           inlineScript: |
@@ -228,7 +381,7 @@ jobs:
               -c '$web' \
               -s 'src/ContosoTraders.Ui.Website/build'
 
-      - name: purge CDN endpoint
+      - name: Purge CDN endpoint
         uses: azure/CLI@v2
         with:
           inlineScript: |
